@@ -204,8 +204,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	getConfluenceResponce("130744746")
-
 	bot, err := discordgo.New("Bot " + Conf.Token)
 	if err != nil {
 		log.Fatal(err)
