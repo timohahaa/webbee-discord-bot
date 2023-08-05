@@ -1,3 +1,4 @@
+#rename the file to config.yaml
 bot:
   commandPrefix: "!"
   # please always put token in "" 

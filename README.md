@@ -1,4 +1,4 @@
-### A Jira/Confluence discrod bot
+### A Jira/Confluence discord bot
 
 Special for https://web-bee.ru/ :)
 
