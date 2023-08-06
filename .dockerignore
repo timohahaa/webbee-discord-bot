@@ -1,4 +1,5 @@
 config_example.yaml
+.env-example
 .gitignore
 README.md
 ./imgs

@@ -1,11 +1,13 @@
 #rename the file to config.yaml
 bot:
   commandPrefix: "!"
-  # please always put token in "" 
-  token: "token"
+  #please always put token in "" 
+  #also should use .env file for a token
+  #token: "token"
   
 atlassian:
   jiraUrl: "https://jira.mydomain.com"
   confluenceUrl: "https://confluence.mydomain.com"
-  username: "Bob"
-  password: "bobsSecurePassword1337"
+  #should use .env file for whis kind of stuff
+  #username: "Bob"
+  #password: "bobsSecurePassword1337"

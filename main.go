@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	Conf *Config = &Config{}
+	Conf       *Config = &Config{}
+	EmbedColor int     = 0x0c84df
 )
 
 // checks for issue priroity and marks it with a discord emoji
@@ -55,16 +56,21 @@ func getJiraResponce(issueID string) (string, error) {
 	}
 	// вот тут немного некрасиво, raw string litteral, но поверьте, так сильно легче настраивать сообщение!
 	return fmt.Sprintf(
-		`:arrow_forward: **%v** :arrow_backward:
-(%v)
+		`:arrow_forward: **[%v](%v)** :arrow_backward:
+
 **Приоритет:** %v
+**Assignee:** %v
 **Описание:**
 
 %v`,
-		issue.Fields.Summary, Conf.Atlassian.JiraUrl+"/browse/"+issueID,
-		checkPriority(issue.Fields.Priority.Name), issue.Fields.Description), nil
+		issue.Fields.Summary,
+		Conf.Atlassian.JiraUrl+"/browse/"+issueID,
+		checkPriority(issue.Fields.Priority.Name),
+		issue.Fields.Assignee.DisplayName,
+		issue.Fields.Description), nil
 }
 
+// gets confluence page description and formats it to a discrod message
 func getConfluenceResponce(contentID string) (string, error) {
 	// create confluence api
 	cfApi, err := confluence.NewAPI(Conf.Atlassian.ConfluenceUrl, Conf.Atlassian.Username, Conf.Atlassian.Password)
@@ -80,8 +86,7 @@ func getConfluenceResponce(contentID string) (string, error) {
 	}
 	// вот тут немного некрасиво, raw string litteral, но поверьте, так сильно легче настраивать сообщение!
 	return fmt.Sprintf(
-		`:large_blue_diamond: **%v**
-(%v)
+		`:large_blue_diamond: **[%v](%v)**
 **Space:** %v`,
 		content.Title, Conf.Atlassian.ConfluenceUrl+"/pages/viewpage.action?pageId="+contentID, content.Space.Name), nil
 }
@@ -190,8 +195,13 @@ func messageParser(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if err != nil {
 			s.ChannelMessageSend(m.ChannelID, match+" - ошибка - "+getErrorMessage(err))
 		} else {
-			s.ChannelMessageSend(m.ChannelID, description)
+			//s.ChannelMessageSend(m.ChannelID, description)
+			s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+				Description: description,
+				Color:       EmbedColor, // yellow, because bees are yellow!!!
+			})
 		}
+		// 0xbbcd36
 	}
 }
 
