@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/signal"
 	"regexp"
@@ -13,6 +14,8 @@ import (
 	jira "github.com/andygrunwald/go-jira"
 	"github.com/bwmarrin/discordgo"
 	confluence "github.com/essentialkaos/go-confluence/v5"
+	bitbucket "github.com/ktrysmt/go-bitbucket"
+	//bbb "github.com/go-bitbucket/bitbucket"
 )
 
 var (
@@ -54,6 +57,15 @@ func getJiraResponce(issueID string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error while getting jira issue: %w", err)
 	}
+
+	// it can be that some issue fields are nil
+	// so we need to check for nillness
+	// it actually happens, that there could be no Assignee or Description
+	assignee := "Нет"
+	if issue.Fields.Assignee != nil {
+		assignee = issue.Fields.Assignee.DisplayName
+	}
+	// no need to check for Description, because of a string "nil" value
 	// вот тут немного некрасиво, raw string litteral, но поверьте, так сильно легче настраивать сообщение!
 	return fmt.Sprintf(
 		`:arrow_forward: **[%v](%v)** :arrow_backward:
@@ -66,7 +78,7 @@ func getJiraResponce(issueID string) (string, error) {
 		issue.Fields.Summary,
 		Conf.Atlassian.JiraUrl+"/browse/"+issueID,
 		checkPriority(issue.Fields.Priority.Name),
-		issue.Fields.Assignee.DisplayName,
+		assignee,
 		issue.Fields.Description), nil
 }
 
@@ -89,6 +101,17 @@ func getConfluenceResponce(contentID string) (string, error) {
 		`:large_blue_diamond: **[%v](%v)**
 **Space:** %v`,
 		content.Title, Conf.Atlassian.ConfluenceUrl+"/pages/viewpage.action?pageId="+contentID, content.Space.Name), nil
+}
+
+func getBitbucketResponse() (string, error) {
+	bb := bitbucket.NewBasicAuth(Conf.Atlassian.Username, Conf.Atlassian.Password)
+	url, _ := url.Parse("https://bitbucket.moskit.pro/rest/api/1.0")
+	bb.SetApiBaseURL(*url)
+	repo, err := bb.Repositories.Repository.Get(&bitbucket.RepositoryOptions{RepoSlug: "leaders2023"})
+	fmt.Println(bb.GetApiHostnameURL())
+	fmt.Printf("Repo is: %+v\nError is:%v\n", repo, err)
+
+	return "", nil
 }
 
 func parseURL(URL string) (string, error) {
@@ -176,20 +199,38 @@ func messageParser(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 	// all possible link variants
-	var jiraMoskit = regexp.MustCompile(`https:\/\/jira.moskit.pro\/browse\/[a-zA-Z]*\-[0-9]*`)
-	var jiraWebbee = regexp.MustCompile(`https:\/\/jira\.web\-bee\.ru\/browse\/[a-zA-Z]*\-[0-9]*`)
+	// var jiraMoskit = regexp.MustCompile(`https:\/\/jira.moskit.pro\/browse\/[a-zA-Z]*\-[0-9]*`)
+	// var jiraWebbee = regexp.MustCompile(`https:\/\/jira\.web\-bee\.ru\/browse\/[a-zA-Z]*\-[0-9]*`)
 	var confMoskit = regexp.MustCompile(`https:\/\/confluence\.moskit\.pro\S*`)
 	var confWebbee = regexp.MustCompile(`https:\/\/confluence\.web\-bee\.ru\S*`)
-	// find all links in a message
-	matches := jiraMoskit.FindAllString(m.Content, -1)
-	matches = append(matches, jiraWebbee.FindAllString(m.Content, -1)...)
-	matches = append(matches, confMoskit.FindAllString(m.Content, -1)...)
-	matches = append(matches, confWebbee.FindAllString(m.Content, -1)...)
-	if len(matches) == 0 {
+	// this scans for jira issueID by itself
+	var jiraIssue = regexp.MustCompile(`[a-zA-Z]*\-[0-9]+`)
+
+	// start with jira first
+	matches := jiraIssue.FindAllString(m.Content, -1)
+	// send an issue description for every match
+	fmt.Println(matches)
+	for _, match := range matches {
+		description, err := getJiraResponce(match)
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, match+" - ошибка - "+getErrorMessage(err))
+		} else {
+			//s.ChannelMessageSend(m.ChannelID, description)
+			s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+				Description: description,
+				Color:       EmbedColor, // yellow, because bees are yellow!!!
+			})
+		}
+	}
+	// then confluence
+	pages := confMoskit.FindAllString(m.Content, -1)
+	pages = append(pages, confWebbee.FindAllString(m.Content, -1)...)
+	if len(pages) == 0 {
 		return
 	}
-	// send an issue description for every match
-	for _, match := range matches {
+	fmt.Println(pages)
+	// send a page description for every match
+	for _, match := range pages {
 		// get a description
 		description, err := parseURL(match)
 		if err != nil {
@@ -201,7 +242,6 @@ func messageParser(s *discordgo.Session, m *discordgo.MessageCreate) {
 				Color:       EmbedColor, // yellow, because bees are yellow!!!
 			})
 		}
-		// 0xbbcd36
 	}
 }
 
@@ -213,6 +253,8 @@ func main() {
 		fmt.Println("Could not read config!")
 		log.Fatal(err)
 	}
+
+	getBitbucketResponse()
 
 	bot, err := discordgo.New("Bot " + Conf.Token)
 	if err != nil {
